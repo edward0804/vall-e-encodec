@@ -78,7 +78,8 @@ def process_data_to_model_inputs(batch):
             
             encodec_input.append(decoder_input_id)
 
-        input_datas.append(encodec_input)
+        for i in range(1, 8):
+            input_datas.append(encodec_input)
         
         # decoder input, which is target encodec units.
         for i in range(1, 8):
