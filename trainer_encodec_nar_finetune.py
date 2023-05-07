@@ -8,7 +8,7 @@ from transformers import (
     Seq2SeqTrainingArguments
 )
 from encodec_model.nar_bart_model import NARBartForConditionalGeneration
-
+from encodec_model.nar_encodec_bart_model import NARBartEncodecForConditionalGeneration
 name = 'libri960_nar_wr0.08_lr1e-4'
 wandb.init(name)
 
@@ -17,7 +17,8 @@ wandb.init(name)
 train_dataset = load_dataset("lca0503/soxdata_small_encodec")
 valid_dataset = load_dataset("voidful/librispeech_encodec", split="validationclean")
 tokenizer = AutoTokenizer.from_pretrained("voidful/bart-base-unit")
-model = NARBartForConditionalGeneration.from_pretrained("voidful/bart-base-unit")
+# model = NARBartForConditionalGeneration.from_pretrained("voidful/bart-base-unit")
+model = NARBartEncodecForConditionalGeneration.from_pretrained("voidful/bart-base-unit")
 print(train_dataset)
 
 # Set training parameters
@@ -58,6 +59,9 @@ def process_data_to_model_inputs(batch):
     attention_mask = []
     decoder_input_ids = []
     labels = []
+    
+    src_prompt_ids = []
+    src_prompt_mask = []
 
     max_length = 1023  # You can set this to a suitable value based on your dataset
     input_datas = []
@@ -68,6 +72,10 @@ def process_data_to_model_inputs(batch):
 
         # Tokenize prompt data.
         prompt_data = tokenizer(batch_data, padding='max_length', truncation=True, max_length=max_length)
+
+        for i in range(1, 8):
+            src_prompt_ids.append(prompt_data["input_ids"])
+            src_prompt_mask.append(prompt_data["attention_mask"])
 
         # source encodec input, which have 8 group units.
         encodec_input = []
@@ -93,8 +101,7 @@ def process_data_to_model_inputs(batch):
             decoder_input_ids.append(decoder_input_id)
             labels.append(label)
     
-
-    # Pad the input data sequences (prompt data) and create attention masks
+    # Pad the input data sequences (source data) and create attention masks
     padded_input_datas = []
     attention_masks = []
     for input_data in input_datas:
@@ -118,7 +125,9 @@ def process_data_to_model_inputs(batch):
         "input_ids": padded_input_datas,
         "attention_mask": attention_masks,
         "decoder_input_ids": decoder_input_ids,
-        "labels": labels
+        "labels": labels,
+        "src_prompt_ids": src_prompt_ids,
+        "src_prompt_mask": src_prompt_mask
     }
 
 def filter_examples(example):
