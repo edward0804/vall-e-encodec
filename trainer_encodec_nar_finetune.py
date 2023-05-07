@@ -62,13 +62,15 @@ def process_data_to_model_inputs(batch):
     max_length = 1023  # You can set this to a suitable value based on your dataset
     input_datas = []
     for b in range(len(batch["instruction"])):
-        # print(f"batch: {batch['instruction'][b]}")
-        batch_data = batch["instruction"][b] + " </s> " + batch["transcription"][b]
-        prompt_data = tokenizer(batch_data, padding='max_length', truncation=True, max_length=max_length)
         
-        data = tokenizer(batch_data, padding='max_length', truncation=True, max_length=max_length)
+        # [Instruction Prompt] </s> [Transcription Prompt].
+        batch_data = batch["instruction"][b] + " </s> " + batch["transcription"][b]
 
-        encodec_input = [] # source encodec input.
+        # Tokenize prompt data.
+        prompt_data = tokenizer(batch_data, padding='max_length', truncation=True, max_length=max_length)
+
+        # source encodec input, which have 8 group units.
+        encodec_input = []
 
         for i in range(0, 8):
             decoder_input_id = tokenizer.convert_tokens_to_ids(
@@ -78,6 +80,7 @@ def process_data_to_model_inputs(batch):
 
         input_datas.append(encodec_input)
         
+        # decoder input, which is target encodec units.
         for i in range(1, 8):
             decoder_input_id = tokenizer.convert_tokens_to_ids(
                 [f"v_tok_{u + (i - 1) * 1000}" for u in batch[f'tgt_encodec_{i - 1}'][b]])
@@ -89,7 +92,8 @@ def process_data_to_model_inputs(batch):
             decoder_input_ids.append(decoder_input_id)
             labels.append(label)
     
-    # Pad the input data sequences and create attention masks
+
+    # Pad the input data sequences (prompt data) and create attention masks
     padded_input_datas = []
     attention_masks = []
     for input_data in input_datas:
@@ -105,10 +109,7 @@ def process_data_to_model_inputs(batch):
     batch["input_ids"] = padded_input_datas
     batch["attention_mask"] = attention_masks
 
-    # print(f"padded_input_datas: {len(padded_input_datas)}")
-        
     # Pad decoder_input_ids and labels
-
     decoder_input_ids = pad_sequences(decoder_input_ids, max_length=max_length, padding_value=tokenizer.pad_token_id)
     labels = pad_sequences(labels, max_length=max_length, padding_value=-100)
 
