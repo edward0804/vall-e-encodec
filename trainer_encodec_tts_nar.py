@@ -7,7 +7,7 @@ from transformers import (
     Seq2SeqTrainer,
     Seq2SeqTrainingArguments
 )
-from nar_bart import NARBartForConditionalGeneration
+from encodec_model.nar_bart_model import NARBartForConditionalGeneration
 
 name = 'libri960_nar_wr0.08_lr1e-4'
 wandb.init(name)
@@ -19,6 +19,7 @@ valid_dataset = load_dataset("voidful/librispeech_encodec", split="validationcle
 tokenizer = AutoTokenizer.from_pretrained("voidful/bart-base-unit")
 model = NARBartForConditionalGeneration.from_pretrained("voidful/bart-base-unit")
 print(train_dataset)
+
 # Set training parameters
 training_args = Seq2SeqTrainingArguments(
     output_dir="./training_output",
@@ -52,15 +53,11 @@ def pad_sequences_for_attn_mask(sequences, max_length):
 
 # Define training and validation functions
 def process_data_to_model_inputs(batch):
+
     input_ids = []
-    prompt_input_ids = []
-    src_input_ids = []
     attention_mask = []
     decoder_input_ids = []
     labels = []
-
-    src_input_ids_ = []
-    attention_mask_ = []
 
     max_length = 1023  # You can set this to a suitable value based on your dataset
     input_datas = []
@@ -81,22 +78,6 @@ def process_data_to_model_inputs(batch):
 
         input_datas.append(encodec_input)
         
-        # Pad the input data sequences and create attention masks
-        padded_input_datas = []
-        attention_masks = []
-        for input_data in input_datas:
-            padded_input_data = []
-            for seq in input_data:
-                seq_len = len(seq)
-                padded_seq = seq + [tokenizer.pad_token_id] * (max_length - seq_len)
-                mask = [1] * seq_len + [0] * (max_length - seq_len)
-                padded_input_data.append(padded_seq)
-            padded_input_datas.append(padded_input_data)
-            attention_masks.append(mask)
-       
-        batch["input_ids"] = padded_input_datas
-        batch["attention_mask"] = attention_masks
-        
         for i in range(1, 8):
             decoder_input_id = tokenizer.convert_tokens_to_ids(
                 [f"v_tok_{u + (i - 1) * 1000}" for u in batch[f'tgt_encodec_{i - 1}'][b]])
@@ -107,6 +88,24 @@ def process_data_to_model_inputs(batch):
 
             decoder_input_ids.append(decoder_input_id)
             labels.append(label)
+    
+    # Pad the input data sequences and create attention masks
+    padded_input_datas = []
+    attention_masks = []
+    for input_data in input_datas:
+        padded_input_data = []
+        for seq in input_data:
+            seq_len = len(seq)
+            padded_seq = seq + [tokenizer.pad_token_id] * (max_length - seq_len)
+            mask = [1] * seq_len + [0] * (max_length - seq_len)
+            padded_input_data.append(padded_seq)
+        padded_input_datas.append(padded_input_data)
+        attention_masks.append(mask)
+       
+    batch["input_ids"] = padded_input_datas
+    batch["attention_mask"] = attention_masks
+
+    # print(f"padded_input_datas: {len(padded_input_datas)}")
         
     # Pad decoder_input_ids and labels
 
